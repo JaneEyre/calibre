@@ -1,0 +1,192 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Example Tech News Recipe for Calibre Scheduled Downloader
+
+This recipe demonstrates how to create a custom recipe that downloads
+content from multiple tech news sources and aggregates them into a
+single e-book.
+
+To use this recipe:
+1. Save this file as example_tech_news.recipe
+2. Schedule it using the downloader:
+   python calibre_scheduled_downloader.py --schedule-recipe example_tech_news.recipe --interval 1.0
+"""
+
+from calibre.web.feeds.news import BasicNewsRecipe
+
+
+class TechNewsAggregator(BasicNewsRecipe):
+    """
+    A comprehensive tech news aggregator that collects articles from
+    multiple technology news sources.
+    """
+    
+    # Basic recipe information
+    title = 'Daily Tech News Digest'
+    __author__ = 'Calibre Scheduled Downloader'
+    description = 'Aggregated technology news from multiple sources'
+    publisher = 'Tech News Aggregator'
+    category = 'news, technology, programming'
+    
+    # Language and encoding
+    language = 'en'
+    encoding = 'utf-8'
+    
+    # Download timing settings
+    oldest_article = 2  # Only get articles from last 2 days
+    max_articles_per_feed = 10  # Limit articles per feed
+    delay = 1  # Wait 1 second between downloads
+    simultaneous_downloads = 3  # Download 3 articles at once
+    timeout = 60  # 60 second timeout per download
+    
+    # Content processing settings
+    no_stylesheets = True  # Remove CSS styling
+    remove_javascript = True  # Remove JavaScript
+    remove_empty_feeds = True  # Don't include feeds with no articles
+    
+    # Publication settings
+    publication_type = 'magazine'
+    timefmt = ' [%A, %B %d, %Y]'  # Date format on cover
+    
+    # Cover and metadata
+    cover_url = None  # Will use default Calibre-generated cover
+    masthead_url = None
+    
+    # RSS feeds to aggregate
+    feeds = [
+        # Major tech news sites
+        ('Hacker News', 'https://hnrss.org/frontpage'),
+        ('TechCrunch', 'https://feeds.feedburner.com/TechCrunch/'),
+        ('Ars Technica', 'http://feeds.arstechnica.com/arstechnica/index'),
+        ('The Verge', 'https://www.theverge.com/rss/index.xml'),
+        ('Wired', 'https://www.wired.com/feed/rss'),
+        
+        # Developer-focused content
+        ('GitHub Blog', 'https://github.blog/feed/'),
+        ('Stack Overflow Blog', 'https://stackoverflow.blog/feed/'),
+        
+        # Industry analysis
+        ('TechMeme', 'https://www.techmeme.com/feed.xml'),
+    ]
+    
+    # Tags to remove from articles (customize as needed)
+    remove_tags = [
+        dict(name='div', attrs={'class': ['advertisement', 'ad', 'ads']}),
+        dict(name='div', attrs={'class': ['social-share', 'share-buttons']}),
+        dict(name='nav'),
+        dict(name='aside'),
+        dict(name='footer'),
+        dict(name='header', attrs={'class': 'site-header'}),
+        dict(name='div', attrs={'id': 'comments'}),
+    ]
+    
+    # Tags to keep only the content
+    keep_only_tags = [
+        dict(name='div', attrs={'class': ['article-content', 'entry-content', 'post-content']}),
+        dict(name='article'),
+        dict(name='div', attrs={'class': 'story-body'}),
+    ]
+    
+    def get_cover_url(self):
+        """
+        Generate a simple cover URL or return None to use default.
+        You could return a URL to a custom cover image here.
+        """
+        return None
+    
+    def preprocess_html(self, soup):
+        """
+        Custom preprocessing of HTML content.
+        This runs after the article is downloaded but before conversion.
+        """
+        # Remove any remaining unwanted elements
+        for tag in soup.find_all(['script', 'style', 'noscript']):
+            tag.decompose()
+        
+        # Remove empty paragraphs
+        for p in soup.find_all('p'):
+            if not p.get_text().strip():
+                p.decompose()
+        
+        # Clean up image tags - remove loading attributes that can cause issues
+        for img in soup.find_all('img'):
+            if img.has_attr('loading'):
+                del img['loading']
+            if img.has_attr('data-src') and not img.has_attr('src'):
+                img['src'] = img['data-src']
+        
+        # Remove tracking parameters from links
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if '?' in href and ('utm_' in href or 'ref=' in href):
+                # Simple tracking parameter removal
+                clean_href = href.split('?')[0]
+                link['href'] = clean_href
+        
+        return soup
+    
+    def postprocess_html(self, soup, first_fetch):
+        """
+        Post-processing after article content extraction.
+        """
+        # Add a horizontal rule between articles for better separation
+        if not first_fetch:
+            hr = soup.new_tag('hr')
+            hr['style'] = 'border: 1px solid #ccc; margin: 20px 0;'
+            soup.body.insert(0, hr)
+        
+        return soup
+    
+    def populate_article_metadata(self, article, soup, first):
+        """
+        Extract and clean up article metadata.
+        """
+        # Try to find and clean up the publication date
+        if hasattr(article, 'published_parsed') and article.published_parsed:
+            # Convert to a more readable format if needed
+            pass
+        
+        # Clean up title - remove site name suffixes
+        if hasattr(article, 'title'):
+            title = article.title
+            # Remove common suffixes like " | TechCrunch", " - The Verge", etc.
+            for suffix in [' | TechCrunch', ' - The Verge', ' | Ars Technica', 
+                          ' | Hacker News', ' - Wired', ' | WIRED']:
+                if title.endswith(suffix):
+                    article.title = title[:-len(suffix)]
+                    break
+        
+        # Extract author information if available
+        if hasattr(article, 'author') and article.author:
+            article.author = article.author.strip()
+    
+    def print_version(self, url):
+        """
+        Override this to return a print-friendly version of the URL.
+        Some sites have /print/ versions that are cleaner.
+        """
+        # Example transformations for print versions
+        if 'techcrunch.com' in url:
+            return url + '?print=1'
+        elif 'arstechnica.com' in url:
+            return url + '?print=1'
+        
+        return url
+    
+    def get_article_url(self, article):
+        """
+        Override to modify article URLs before downloading.
+        """
+        url = BasicNewsRecipe.get_article_url(self, article)
+        
+        # Use print version if available
+        return self.print_version(url)
+
+
+# For testing this recipe directly
+if __name__ == '__main__':
+    # You can test this recipe directly with Calibre's ebook-convert
+    # ebook-convert example_tech_news.recipe output.epub
+    pass
