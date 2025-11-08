@@ -12,6 +12,7 @@ import shlex
 
 RECIPE_CONFIGS = [
     # 2025-01-25 : YYYY-MM-DD
+    # Sat publish （download:Sun）
     {
         "name": "The Economist",
         "recipe": "economist.recipe",
@@ -22,6 +23,7 @@ RECIPE_CONFIGS = [
         # Logic: If today is Saturday or Sunday, download Friday's edition.
     },
     # Oct 27, 2025 : MMM DD, YYYY 
+    # Mon publish （download: Tues）
     {
         "name": "Barron's",
         "recipe": "barrons.recipe",
@@ -46,10 +48,35 @@ RECIPE_CONFIGS = [
         "value": "0.5",
         "format": ""
     },
-    # Note: Bloomberg Business Week and HBR use 'issue' which would require more complex
-    # custom logic based on the current date, so they are omitted from the basic script for clarity.
+    # 2505 : YYMM
+    # monthly download last day of month
+    {
+        "name": "Harvard Business Review (monthly)",
+        "recipe": "hbr.recipe",
+        "output": "hbr.pdf",
+        "type": "days",
+        "value": "0.5",
+        "format": ""
+    },    
+    # 2505 : YYMM
+    # monthly : download first day of month
+    {
+        "name": "Bloomberg Business Week (monthly)",
+        "recipe": "bloomberg-business-week.recipe",
+        "output": "bloomberg-business-week.pdf",
+        "type": "issue",
+        "value": "",
+        "format": "{YYYY}_{MM}"
+    },    
+    {
+        "name": "Bloomberg (Daily)", 
+        "recipe": "bloomberg.recipe",
+        "output": "bloomberg.pdf",
+        "type": "days",
+        "value": "0.5",
+        "format": ""
+    },    
 ]
-
 
 def calculate_recipe_option(config):
     """Calculates the --recipe-specific-option value based on the config type."""
@@ -91,7 +118,6 @@ def calculate_recipe_option(config):
         return f"date:'{download_date.strftime('%Y-%m-%d')}'", True # Always download in this concept
 
     return None, False
-
 
 def run_conversion_commands():
     """Iterates through the config and executes ebook-convert commands."""
